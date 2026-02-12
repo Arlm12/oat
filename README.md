@@ -10,6 +10,9 @@
 [![Version](https://img.shields.io/badge/version-0.1.0--beta-orange.svg)](https://github.com/yourusername/openagent-trace)
 
 
+### Contributors
+1. Praveen Raj - (https://github.com/uspraveen)
+2. Arunachalam - (https://github.com/Arlm12)
 </div>
 
 ---

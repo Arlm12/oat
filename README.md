@@ -34,8 +34,6 @@
 - [Advanced Topics](#-advanced-topics)
 - [Examples](#-examples)
 - [Troubleshooting](#-troubleshooting)
-- [Contributing](#-contributing)
-- [Roadmap](#-roadmap)
 - [Acknowledgments](#-acknowledgments)
 - [License](#-license)
 
@@ -689,6 +687,11 @@ tracer = get_tracer(
 <img width="2473" height="1182" alt="Screenshot 2026-02-04 163444" src="https://github.com/user-attachments/assets/a2f960b9-6bed-4ca7-8606-d01dc0799d00" />
 
 
+### Demo Video 
+
+https://github.com/user-attachments/assets/a6d6d7b3-c206-4fe3-ae4f-1202545ddead
+
+
 ---
 
 ## 🔌 Server API
@@ -1086,74 +1089,6 @@ async def my_agent():
 
 ---
 
-## 🤝 Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Development Setup
-
-```bash
-# Clone repo
-git clone https://github.com/yourusername/openagent-trace.git
-cd openagent-trace
-
-# Install dev dependencies
-pip install -e ".[dev]"
-
-# Install pre-commit hooks
-pre-commit install
-
-# Run tests
-pytest
-
-# Run linter
-ruff check .
-
-# Run type checker
-mypy oat/
-```
-
-### Code Style
-
-- **Python**: Follow PEP 8, use `black` for formatting
-- **JavaScript**: Follow Airbnb style guide, use Prettier
-- **Type hints**: Required for all public APIs
-- **Docstrings**: Google style for all modules, classes, and functions
-
----
-
-## 🗺️ Roadmap
-
-### v0.2.0 (Q2 2024)
-- [ ] Google Gemini integration
-- [ ] Mistral AI integration
-- [ ] Prometheus metrics export
-- [ ] OpenTelemetry compatibility layer
-- [ ] Trace comparison UI
-
-### v0.3.0 (Q3 2024)
-- [ ] Guardrail library integration (NeMo, Guardrails)
-- [ ] Prompt versioning and management
-- [ ] A/B testing framework
-- [ ] Cost budgeting and alerts
-- [ ] Multi-tenant support
-
-### v1.0.0 (Q4 2024)
-- [ ] Production-ready stability
-- [ ] Enterprise features (SSO, RBAC)
-- [ ] Cloud-hosted option
-- [ ] Alerting and monitoring
-- [ ] Data retention policies
-
-### Future
-- [ ] AutoML for prompt optimization
-- [ ] Anomaly detection for agent behavior
-- [ ] Hallucination detection
-- [ ] Evaluation framework
-- [ ] Agent collaboration tracing
-
----
-
 ## 🙏 Acknowledgments
 
 OpenAgentTrace is inspired by and builds upon ideas from:
@@ -1199,10 +1134,8 @@ SOFTWARE.
 
 ## 📞 Support
 
-- **Documentation**: [docs.openagent-trace.dev](https://docs.openagent-trace.dev)
-- **GitHub Issues**: [github.com/yourusername/openagent-trace/issues](https://github.com/yourusername/openagent-trace/issues)
-- **Discord**: [discord.gg/openagent-trace](https://discord.gg/openagent-trace)
-- **Email**: support@openagent-trace.dev
+- **Website**: (https://oat.thelearnchain.com)
+- **Email**: founder@thelearnchain.com
 
 ---
 
@@ -1210,8 +1143,6 @@ SOFTWARE.
 
 **⭐ Star us on GitHub if you find OpenAgentTrace useful!**
 
-Made with ❤️ by the OpenAgentTrace team
-
-[Documentation](https://docs.openagent-trace.dev) • [Examples](./examples) • [Changelog](./CHANGELOG.md) • [Contributing](./CONTRIBUTING.md)
+Made with ❤️ by the LearnChain team
 
 </div>

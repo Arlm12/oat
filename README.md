@@ -4,13 +4,11 @@
 
 **🔍 The Open Standard for AI Agent Observability**
 
-*Grafana + Prometheus for the AI Agent Era*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-0.1.0--beta-orange.svg)](https://github.com/yourusername/openagent-trace)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Examples](#-examples) • [Dashboard](#-dashboard)
 
 </div>
 
@@ -191,7 +189,7 @@ OpenAgentTrace provides:
 ### Component Architecture
 
 ```
-openagent-trace/
+OpenAgentTrace/
 ├── oat/                          # Python SDK (Core Library)
 │   ├── __init__.py              # Public API
 │   ├── tracer.py                # Core tracing (decorators, context)
@@ -216,10 +214,6 @@ openagent-trace/
 │   │       ├── AnalyticsPage.jsx
 │   │       └── PromptsPage.jsx
 │   └── package.json
-│
-├── examples/                    # Example agents
-│   ├── demo_agent.py
-│   └── coding_agent.py
 │
 ├── pyproject.toml              # Package config
 ├── requirements.txt            # Dependencies

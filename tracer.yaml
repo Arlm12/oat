@@ -1,0 +1,78 @@
+# OpenAgentTrace Configuration
+# This file defines auto-instrumentation rules for your agent
+
+# Service identification
+service:
+  name: my-agent
+  version: "1.0.0"
+  environment: development
+
+# Export configuration
+export:
+  # Local storage (always enabled)
+  local:
+    enabled: true
+    data_dir: .oat
+  
+  # HTTP export to OAT server
+  http:
+    enabled: true
+    endpoint: http://localhost:8787
+    batch_size: 10
+    flush_interval_ms: 1000
+
+# Auto-instrumentation targets
+# These functions will be automatically traced without decorators
+targets:
+  # LLM calls
+  - module: openai.resources.chat.completions
+    function: create
+    span_type: llm
+    capture_input: true
+    capture_output: true
+  
+  # Database queries  
+  - module: my_agent.database
+    function: query
+    span_type: tool
+    name: db_query
+    
+  # Vector search
+  - module: my_agent.retriever
+    function: search
+    span_type: retrieval
+    meta:
+      collection: documents
+
+# Sampling configuration
+sampling:
+  # Sample rate (0.0 - 1.0)
+  rate: 1.0
+  
+  # Always sample errors
+  sample_errors: true
+  
+  # Always sample slow traces (ms)
+  slow_threshold_ms: 5000
+
+# Cost tracking (per 1K tokens)
+cost_config:
+  models:
+    gpt-4o:
+      input: 0.0025
+      output: 0.01
+    gpt-4o-mini:
+      input: 0.00015
+      output: 0.0006
+    gpt-4-turbo:
+      input: 0.01
+      output: 0.03
+    claude-3-opus:
+      input: 0.015
+      output: 0.075
+    claude-3-sonnet:
+      input: 0.003
+      output: 0.015
+    claude-3-haiku:
+      input: 0.00025
+      output: 0.00125

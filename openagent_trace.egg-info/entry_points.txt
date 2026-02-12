@@ -1,0 +1,2 @@
+[console_scripts]
+oat-server = server.main:main

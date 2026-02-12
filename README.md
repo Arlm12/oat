@@ -20,7 +20,6 @@
 - [Why OpenAgentTrace?](#-why-openagent-trace)
 - [Key Features](#-key-features)
 - [Architecture](#-architecture)
-- [Installation](#-installation)
 - [Quick Start](#-quick-start)
 - [Core Concepts](#-core-concepts)
 - [Usage Guide](#-usage-guide)
@@ -218,52 +217,6 @@ OpenAgentTrace/
 ├── pyproject.toml              # Package config
 ├── requirements.txt            # Dependencies
 └── tracer.yaml                 # Configuration
-```
-
----
-
-## 📦 Installation
-
-### Prerequisites
-
-- **Python 3.9+**
-- **Node.js 16+** (for dashboard)
-- **pip** or **poetry**
-
-### Option 1: pip (Simple)
-
-```bash
-# Install core SDK
-pip install openagent-trace
-
-# Install with server dependencies
-pip install openagent-trace[server]
-
-# Install with all integrations
-pip install openagent-trace[all]
-```
-
-### Option 2: From Source (Recommended for Development)
-
-```bash
-# Clone repository
-git clone https://github.com/yourusername/openagent-trace.git
-cd openagent-trace
-
-# Install Python dependencies
-pip install -e .
-pip install -e ".[server,dev]"
-
-# Install UI dependencies
-cd ui
-npm install
-cd ..
-```
-
-### Verify Installation
-
-```bash
-python -c "from oat import trace, get_tracer; print('✅ OAT installed successfully!')"
 ```
 
 ---
@@ -727,7 +680,14 @@ tracer = get_tracer(
 
 ### Screenshots
 
-*(Add screenshots here when available)*
+<img width="2484" height="1110" alt="Screenshot 2026-02-04 212855" src="https://github.com/user-attachments/assets/7177192b-3a24-4475-a2ee-26d47445cec6" />
+<img width="2101" height="1279" alt="Screenshot 2026-02-04 230013" src="https://github.com/user-attachments/assets/a81c4eb8-9f0b-4481-adc0-805856af0a19" />
+<img width="2464" height="1371" alt="Screenshot 2026-02-04 163301" src="https://github.com/user-attachments/assets/8c696e49-1190-479c-8174-6fab0d37ae8c" />
+<img width="2459" height="1179" alt="Screenshot 2026-02-04 163323" src="https://github.com/user-attachments/assets/a03000ed-656f-43a9-83a1-35027afb3877" />
+<img width="2454" height="889" alt="Screenshot 2026-02-04 163340" src="https://github.com/user-attachments/assets/426c4460-1815-4935-b7ca-34fc285e18a6" />
+<img width="2458" height="1220" alt="Screenshot 2026-02-04 163355" src="https://github.com/user-attachments/assets/847d2a78-b390-4999-957b-681fba5063cb" />
+<img width="2473" height="1182" alt="Screenshot 2026-02-04 163444" src="https://github.com/user-attachments/assets/a2f960b9-6bed-4ca7-8606-d01dc0799d00" />
+
 
 ---
 

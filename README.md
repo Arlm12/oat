@@ -11,1088 +11,1352 @@
 
 
 ### Contributors
-1. Praveen Raj - (https://github.com/uspraveen)
-2. Arunachalam - (https://github.com/Arlm12)
+1. Arunachalam - (https://github.com/Arlm12)
 </div>
 
----
+---# OpenAgentTrace Detailed Guide
 
-## 📖 Table of Contents
+This document describes the repository as it exists in code on March 5, 2026. (Updated code is sequentially being pushed to the repo)
 
-- [Overview](#-overview)
-- [Why OpenAgentTrace?](#-why-openagent-trace)
-- [Key Features](#-key-features)
-- [Architecture](#-architecture)
-- [Quick Start](#-quick-start)
-- [Core Concepts](#-core-concepts)
-- [Usage Guide](#-usage-guide)
-  - [Tracing with Decorators](#tracing-with-decorators)
-  - [Manual Span Creation](#manual-span-creation)
-  - [Auto-Instrumentation](#auto-instrumentation)
-- [Span Types](#-span-types)
-- [Configuration](#-configuration)
-- [Dashboard](#-dashboard)
-- [Server API](#-server-api)
-- [Integrations](#-integrations)
-- [Advanced Topics](#-advanced-topics)
-- [Examples](#-examples)
-- [Troubleshooting](#-troubleshooting)
-- [Acknowledgments](#-acknowledgments)
-- [License](#-license)
+`README.md` is the shorter project overview. This file is the code-aligned technical reference for the current repository state.
 
----
+## Snapshot
 
-## 🌟 Overview
+- Project name: OpenAgentTrace (OAT)
+- Python package version: `0.1.0`
+- FastAPI server version string: `0.2.0`
+- Canonical telemetry model: `Run -> Span -> Artifact`
+- Canonical schema version: `2026-03-01`
+- Default local storage: SQLite database plus blob files under `.oat/`
+- Backend API: FastAPI in `server/`
+- Dashboard UI: React + Vite app in `ui/`
+- Current examples: `examples/demo_agent.py`, `examples/multimodal_image_agent.py`
 
-**OpenAgentTrace (OAT)** is an open-source, vendor-neutral observability platform purpose-built for AI agents. Unlike traditional observability tools that focus on request-response patterns, OAT captures the complete decision-making flow of autonomous agents including LLM calls, tool executions, reasoning chains, and multi-step workflows.
+## What OAT Is Today
 
-### What Makes OAT Different?
+OpenAgentTrace is currently a local-first observability stack for agentic and LLM applications.
 
-Traditional observability tools (DataDog, New Relic, Grafana) are built for microservices and APIs. AI agents require fundamentally different instrumentation:
+At the code level, the project is built around five pieces:
 
-| Traditional Observability | OpenAgentTrace |
-|--------------------------|----------------|
-| Request → Response | Agent → Plan → Tool → LLM → Memory → Decision |
-| Fixed endpoints | Dynamic reasoning chains |
-| Simple traces | Complex DAGs with multiple paths |
-| HTTP metrics | Token usage, cost attribution, reasoning depth |
-| Error tracking | Guardrail triggers, hallucination detection |
+1. A Python SDK in `oat/` that creates runs, spans, and artifacts.
+2. A local storage engine that writes canonical telemetry events into SQLite and blob files.
+3. Optional HTTP export from the SDK to a backend server.
+4. A FastAPI backend in `server/main.py` that ingests events and serves run, analytics, artifact, and arena APIs.
+5. A React dashboard in `ui/` that visualizes runs, graphs, prompts, analytics, and model comparisons.
 
----
+A practical way to think about the system is:
 
-## 💡 Why OpenAgentTrace?
+- The SDK always records locally first.
+- Export to the server is optional.
+- The dashboard only shows what exists in the server's storage, not whatever was recorded locally by another process unless that process exports to the server.
 
-### The Problem
+That last point is important. If you run an agent locally without `export_url` or `OAT_EXPORT_URL`, you can still have traces on disk, but they will not appear in the dashboard.
 
-Building production AI agents is hard. Debugging them is harder. Current tools fall short:
+## Repository Layout
 
-- **❌ LangSmith**: Vendor lock-in, expensive at scale, closed-source
-- **❌ Weights & Biases**: ML-focused, not agent-native
-- **❌ Arize Phoenix**: Lacks real-time monitoring, limited agent semantics
-- **❌ OpenTelemetry**: Too generic, requires heavy customization
-
-### The Solution
-
-OpenAgentTrace provides:
-
-✅ **Agent-Native Semantics** - Span types designed for AI: LLM, Tool, Retrieval, Guardrail, Memory, Chain
-✅ **Local-First Architecture** - SQLite storage with optional remote export, no vendor lock-in
-✅ **Zero-Config Auto-Instrumentation** - Patch OpenAI/Anthropic once, trace everything automatically
-✅ **Cost Attribution** - Track token usage and costs per operation, model, and agent
-✅ **Real-Time Dashboard** - React UI with DAG visualization, waterfall charts, and live updates
-✅ **Production Ready** - Non-blocking async export, graceful shutdown, thread-safe storage
-
----
-
-## 🚀 Key Features
-
-### Core Capabilities
-
-1. **🎯 Semantic Span Types (14 Types)**
-   - `agent`, `llm`, `tool`, `retrieval`, `guardrail`, `handoff`
-   - `embedding`, `rerank`, `memory`, `chain`
-   - `http`, `database`, `cache`, `file_io`
-
-2. **💰 Automatic Cost Tracking**
-   - Built-in pricing for 30+ models (OpenAI, Anthropic, Google, Mistral)
-   - Per-call cost calculation (prompt + completion)
-   - Aggregate cost reporting by trace, agent, or time period
-
-3. **🖼️ Multimodal Support**
-   - Image, audio, video metadata extraction
-   - Vision model token estimation
-   - Media content hashing and deduplication
-
-4. **📊 Local-First Storage**
-   - SQLite with WAL mode for concurrency
-   - Blob storage with content-based deduplication
-   - Optional HTTP export to remote servers
-
-5. **🔄 Real-Time Updates**
-   - WebSocket support for live dashboard updates
-   - Non-blocking background workers
-   - Graceful shutdown with flush guarantees
-
-6. **📈 Advanced Analytics**
-   - DuckDB-powered time-series queries
-   - Latency percentiles by span type
-   - Error rate tracking and alerting
-   - Token usage trends
-
-7. **🎨 Beautiful Dashboard**
-   - DAG visualization with ReactFlow
-   - Waterfall/timeline views
-   - Interactive span explorer
-   - Cost and performance metrics
-
----
-
-## 🏗️ Architecture
-
-### System Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Your AI Agent                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  @trace      │  │  patch_openai│  │  span()      │      │
-│  │  decorator   │  │  integration │  │  context mgr │      │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
-└─────────┼──────────────────┼──────────────────┼─────────────┘
-          │                  │                  │
-          └─────────┬────────┴─────────┬────────┘
-                    ▼                  ▼
-          ┌─────────────────────────────────────┐
-          │      OpenAgentTrace SDK (oat/)      │
-          │                                     │
-          │  ┌──────────┐    ┌──────────┐      │
-          │  │ Tracer   │───▶│ Storage  │      │
-          │  └──────────┘    └──────────┘      │
-          │       │               │             │
-          │       │          SQLite + Blobs     │
-          │       │                             │
-          │  ┌────▼─────┐                       │
-          │  │ Exporter │                       │
-          │  └──────────┘                       │
-          └──────┬──────────────────────────────┘
-                 │ HTTP POST /ingest
-                 ▼
-          ┌─────────────────────────────────────┐
-          │    FastAPI Server (server/)         │
-          │                                     │
-          │  ┌──────────┐    ┌──────────┐      │
-          │  │ REST API │    │ WebSocket│      │
-          │  └──────────┘    └──────────┘      │
-          │       │               │             │
-          │  ┌────▼────┐    ┌─────▼─────┐      │
-          │  │ SQLite  │    │  DuckDB   │      │
-          │  │ Storage │    │ Analytics │      │
-          │  └─────────┘    └───────────┘      │
-          └──────┬──────────────────────────────┘
-                 │ REST API
-                 ▼
-          ┌─────────────────────────────────────┐
-          │      React Dashboard (ui/)          │
-          │                                     │
-          │  ┌──────────┐    ┌──────────┐      │
-          │  │ Traces   │    │ Analytics│      │
-          │  │ Explorer │    │ Charts   │      │
-          │  └──────────┘    └──────────┘      │
-          │                                     │
-          │  ┌──────────┐    ┌──────────┐      │
-          │  │ DAG View │    │ Prompts  │      │
-          │  │ Waterfall│    │ Registry │      │
-          │  └──────────┘    └──────────┘      │
-          └─────────────────────────────────────┘
-```
-
-### Component Architecture
-
-```
+```text
 OpenAgentTrace/
-├── oat/                          # Python SDK (Core Library)
-│   ├── __init__.py              # Public API
-│   ├── tracer.py                # Core tracing (decorators, context)
-│   ├── models.py                # Data models (Span, Trace)
-│   ├── storage.py               # SQLite + blob storage
-│   ├── exporters.py             # HTTP/Console exporters
-│   ├── pricing.py               # Cost calculation
-│   ├── media.py                 # Multimodal analysis
-│   └── integrations/            # Auto-instrumentation
-│       ├── openai_integration.py
-│       └── anthropic_integration.py
-│
-├── server/                       # FastAPI Backend
-│   └── main.py                  # API endpoints, analytics
-│
-├── ui/                          # React Dashboard
-│   ├── src/
-│   │   ├── App.jsx
-│   │   └── pages/
-│   │       ├── TracesPage.jsx
-│   │       ├── TraceDetailPage.jsx
-│   │       ├── AnalyticsPage.jsx
-│   │       └── PromptsPage.jsx
-│   └── package.json
-│
-├── pyproject.toml              # Package config
-├── requirements.txt            # Dependencies
-└── tracer.yaml                 # Configuration
+|-- oat/                      # Core SDK, models, storage, integrations, pricing
+|-- server/                   # FastAPI backend and ingest API
+|-- ui/                       # React/Vite dashboard
+|-- examples/                 # Example agents and test image
+|-- providers.yaml            # Arena provider catalog
+|-- tracer.yaml               # Example tracer config file
+|-- start.sh                  # Linux/macOS quick-start script
+|-- start.ps1                 # Windows quick-start script
+|-- README.md                 # Short overview
+|-- README_DETAILED.md        # This detailed guide
+|-- ARCHITECTURE.md           # Older standalone architecture notes
+|-- pyproject.toml            # Python packaging and extras
+|-- requirements.txt          # Flat dependency list for convenience
 ```
 
----
+## Architecture
 
-## ⚡ Quick Start
+This section describes the current runtime architecture of the repository.
 
-### 1. Instrument Your Agent (30 seconds)
+### Component Topology
+
+```text
+User application
+    |
+    | trace decorators / context managers / explicit tracer calls
+    v
+OAT SDK (`oat/`)
+    |
+    | canonical events
+    | (run.started, span.started, span.finished, artifact.created, run.finished)
+    +------------------------------+
+    |                              |
+    | local-first persistence      | optional export
+    v                              v
+Local `.oat/` storage          FastAPI server (`server/main.py`)
+(`telemetry.db` + blobs)           |
+                                   | same StorageEngine materialization model
+                                   v
+                           Server `.oat/` storage
+                                   |
+                                   | REST + WebSocket APIs
+                                   v
+                           React dashboard (`ui/`)
+```
+###Dashboard V2 Images
+<img width="2481" height="1402" alt="Screenshot 2026-03-05 095901" src="https://github.com/user-attachments/assets/0a024b88-bbab-46a5-a4f4-2b3183221434" />
+<img width="2481" height="1396" alt="Screenshot 2026-03-05 100021" src="https://github.com/user-attachments/assets/e2629612-afb4-422d-8c16-4ec9630a142c" />
+<img width="2485" height="1401" alt="Screenshot 2026-03-05 102454" src="https://github.com/user-attachments/assets/96d33f61-2982-4564-9cf2-289cc7854f14" />
+<img width="2483" height="1404" alt="Screenshot 2026-03-05 101043" src="https://github.com/user-attachments/assets/c98e3cd1-d78e-4095-9ab6-45bdd950c3e9" />
+<img width="2483" height="1403" alt="Screenshot 2026-03-05 101718" src="https://github.com/user-attachments/assets/d7da22a3-9bff-4d06-b4e3-b21b011e0735" />
+
+###Demo - V1
+https://github.com/user-attachments/assets/494742fb-2dac-47fe-ac4c-c8c1a3e98897
+
+
+
+
+### Runtime Responsibilities
+
+#### SDK Layer
+
+The SDK is responsible for:
+
+- creating runs and spans
+- tracking parent-child relationships
+- recording artifacts for prompts, outputs, and media
+- buffering canonical events in memory
+- writing telemetry locally
+- optionally exporting telemetry to the server
+
+This logic lives mainly in:
+
+- `oat/tracer.py`
+- `oat/models.py`
+- `oat/storage.py`
+- `oat/media.py`
+- `oat/integrations/`
+
+#### Local Storage Layer
+
+The storage layer materializes the event stream into queryable tables and blob content.
+
+Current local storage shape:
+
+- SQLite database: `.oat/telemetry.db`
+- blob directory: `.oat/blobs/`
+
+The SDK process and the server process both use the same `StorageEngine` design, but each process writes to its own `.oat/` directory unless they intentionally share a working directory or data path.
+
+#### Server Layer
+
+The FastAPI server is the central collector and query surface for the dashboard.
+
+It is responsible for:
+
+- receiving event batches from clients
+- materializing runs, spans, and artifacts
+- serving run lists, run detail, graphs, analytics, and prompts
+- serving artifact content
+- exposing the model arena APIs
+- broadcasting websocket updates
+
+#### UI Layer
+
+The React UI is a read-heavy client over the server API.
+
+It is responsible for:
+
+- browsing services and runs
+- rendering run DAG and waterfall views
+- showing token usage and artifacts
+- showing aggregate analytics and prompt analytics
+- comparing models side-by-side in the arena
+
+### Write Path
+
+The current write path is:
+
+1. User code calls the tracer API directly or through decorators / patched provider SDKs.
+2. `AgentTracer` creates canonical lifecycle and artifact events.
+3. The tracer queues those events in memory.
+4. A background worker flushes the events into local SQLite and blob storage.
+5. If `export_url` is configured, the same event batch is POSTed to `POST /v1/ingest/events`.
+6. The server materializes those events into its own run/span/artifact tables.
+7. The dashboard can then read the server-backed data.
+
+This is why a local trace is not automatically visible in the dashboard unless it is exported to the server.
+
+### Read Path
+
+The current read path is:
+
+1. The dashboard checks server health at `GET /health`.
+2. The Runs page loads services from `GET /v1/services`.
+3. The user selects a service, and the UI loads runs from `GET /v1/runs`.
+4. The Run Detail page loads:
+   - `GET /v1/runs/{run_id}`
+   - `GET /v1/runs/{run_id}/graph`
+   - `GET /v1/runs/{run_id}/timeline`
+5. Analytics pages load aggregate summaries from:
+   - `GET /v1/analytics/overview`
+   - `GET /v1/analytics/prompts`
+6. Artifact payloads can be fetched from `GET /v1/artifacts/{artifact_id}/content`.
+
+### Integration Architecture
+
+Built-in provider integrations follow a patch-and-wrap model.
+
+Current flow:
+
+1. `patch_openai()`, `patch_anthropic()`, `patch_google()`, or `patch_ollama()` is called.
+2. The integration wraps the provider SDK method.
+3. The wrapper creates an LLM or embedding span.
+4. Input payloads are normalized into artifacts.
+5. Usage and cost are normalized into a common shape.
+6. The span is finished and emitted through the tracer.
+
+In-tree integrations currently exist for:
+
+- OpenAI
+- Anthropic
+- Google Gemini
+- Ollama
+
+### Arena Architecture
+
+The arena is independent from SDK tracing. It is a server-driven model comparison feature.
+
+Current flow:
+
+1. The UI requests available models from `GET /arena/models`.
+2. The server reads `providers.yaml` and any discovered models.
+3. The user selects 2 to 4 models and submits a shared prompt.
+4. The UI sends parallel `POST /arena/run` requests.
+5. The server executes provider-specific calls and returns normalized output, usage, pricing, and latency.
+6. The UI renders each model result in a separate comparison panel.
+
+### Deployment Shapes
+
+The repository currently supports three practical deployment shapes:
+
+#### Local SDK Only
+
+- user code writes to local `.oat/`
+- no server required
+- no dashboard visibility unless you inspect the local data directly
+
+#### Local SDK Plus Server and Dashboard
+
+- user code writes locally and exports to the server
+- server writes to its own `.oat/`
+- dashboard reads from the server
+
+This is the main end-to-end development flow in the current repo.
+
+#### Central Server for Multiple Clients
+
+- multiple client processes export to one OAT server
+- the server acts as the single read surface for the dashboard
+- each client may still keep its own local `.oat/` store for safety and debugging
+
+### Current Architectural Boundaries
+
+Important current boundaries to keep in mind:
+
+- the SDK is event-based internally
+- the dashboard is server-backed, not client-storage-backed
+- storage is SQLite-only in the current implementation
+- `providers.yaml` drives the arena catalog, not the tracer itself
+- `tracer.yaml` is illustrative and is not auto-loaded by the SDK
+- the server is designed for trusted/local environments by default, not hardened multi-tenant deployments
+
+## Core Data Model
+
+The canonical model lives in `oat/models.py`.
+
+### Run
+
+A `Run` is the top-level execution visible in the dashboard.
+
+Key fields:
+
+- `run_id`
+- `service_name`
+- `service_version`
+- `environment`
+- `session_id`
+- `workflow_id`
+- `root_span_id`
+- `status`
+- `started_at`, `ended_at`, `duration_ms`
+- `input_summary`, `output_summary`, `error_message`
+- `metadata`
+- aggregate counters: `total_tokens`, `total_cost`, `llm_calls`, `tool_calls`, `span_count`
+
+### Span
+
+A `Span` is an execution unit inside a run.
+
+Key fields:
+
+- `span_id`
+- `run_id`
+- `parent_span_id`
+- `trace_path`
+- `kind`
+- `name`
+- `status`
+- `started_at`, `ended_at`, `duration_ms`
+- `model`, `provider`, `operation`
+- `input_summary`, `output_summary`
+- `error_type`, `error_message`
+- `attributes`
+- `usage`
+- `cost`
+- `score`, `feedback`
+
+The repo still keeps compatibility aliases so older code can use `trace_id` and `span_type`. In current code, `trace_id` maps directly to `run_id`, and `SpanType` is an alias of `SpanKind`.
+
+### Artifact
+
+An `Artifact` is the payload layer. This is where OAT stores prompts, model outputs, images, audio, previews, and metadata.
+
+Key fields:
+
+- `artifact_id`
+- `run_id`
+- `span_id`
+- `role`
+- `content_type`
+- `storage_uri`
+- `inline_text`
+- `preview`
+- `metadata`
+- `size_bytes`
+- `sha256`
+- `created_at`
+
+### Event Envelope
+
+All canonical ingestion/export is event-based via `EventEnvelope`.
+
+Current canonical event types are:
+
+- `run.started`
+- `run.finished`
+- `span.started`
+- `span.finished`
+- `artifact.created`
+
+### Supported Span Kinds
+
+Current stable `SpanKind` values are:
+
+- `agent`
+- `llm`
+- `tool`
+- `retrieval`
+- `memory`
+- `guardrail`
+- `http`
+- `database`
+- `file`
+- `embedding`
+- `rerank`
+- `chain`
+- `cache`
+- `handoff`
+- `custom`
+
+### Supported Status Values
+
+Current `SpanStatus` values are:
+
+- `running`
+- `success`
+- `error`
+- `cancelled`
+- `timeout`
+- `skipped`
+
+## SDK and Tracer Internals
+
+The main tracer implementation is `oat/tracer.py`.
+
+### AgentTracer
+
+`AgentTracer` is the main runtime object.
+
+Constructor parameters:
+
+- `service_name`
+- `data_dir`
+- `export_url`
+- `auto_flush`
+- `flush_interval`
+- `strict_run_lifecycle`
+
+Current behavior:
+
+- Local persistence is always attempted through `StorageEngine`.
+- If `export_url` is set, the tracer also POSTs event batches to `POST /v1/ingest/events`.
+- Export failures never fail application logic.
+- Telemetry is buffered in a bounded in-process queue.
+
+Current queue and batching details:
+
+- queue max size: `10_000`
+- batch max size: `20`
+- batch max age: `0.05s`
+
+If the queue is full, events are dropped by design. The count is tracked as `AgentTracer.dropped_events`.
+
+### Global Tracer Behavior
+
+`get_tracer(**kwargs)` returns a process-global singleton.
+
+Important current caveat:
+
+- the first call with arguments creates the singleton
+- later calls with different kwargs do not reconfigure it
+- later kwargs are ignored and a warning is emitted
+
+If you need separate tracer configurations in one process, instantiate `AgentTracer(...)` directly.
+
+### Explicit Lifecycle API
+
+The canonical API is explicit:
 
 ```python
-from oat import trace, get_tracer
-from oat.integrations import patch_openai
-
-# Initialize tracer
-tracer = get_tracer(
-    service_name="my-agent",
-    export_url="http://localhost:8787"  # Optional remote server
-)
-
-# Auto-patch OpenAI (one line!)
-patch_openai()
-
-# Decorate your agent function
-@trace(name="my_agent", span_type="agent")
-async def my_agent(query: str):
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI()
-
-    # This call is automatically traced!
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": query}]
-    )
-
-    return response.choices[0].message.content
-
-# Run your agent
-import asyncio
-result = asyncio.run(my_agent("What is Python?"))
-print(result)
-```
-
-**That's it!** Every LLM call is now traced with:
-- ✅ Token usage and cost
-- ✅ Latency tracking
-- ✅ Parent-child relationships
-- ✅ Input/output capture
-
-### 2. Start the Server (Optional but Recommended)
-
-```bash
-# Terminal 1: Start FastAPI server
-uvicorn server.main:app --port 8787
-
-# Server starts at http://localhost:8787
-# API docs at http://localhost:8787/docs
-```
-
-### 3. Launch the Dashboard
-
-```bash
-# Terminal 2: Start React dashboard
-cd ui
-npm run dev
-
-# Dashboard opens at http://localhost:3000
-```
-
-### 4. View Your Traces
-
-1. Open browser to `http://localhost:3000`
-2. Click on your trace to see:
-   - 📊 **DAG visualization** of agent execution flow
-   - ⏱️ **Waterfall chart** showing timing
-   - 💰 **Cost breakdown** by operation
-   - 📝 **Input/output inspection**
-
----
-
-## 🧠 Core Concepts
-
-### Trace Hierarchy
-
-```
-Trace (One per agent execution)
-└── Agent Span (Root span, no parent)
-    ├── LLM Span (GPT-4 call)
-    │   └── Cost: $0.0042
-    ├── Tool Span (Database query)
-    │   └── Database Span (Child of tool)
-    ├── Retrieval Span (Vector search)
-    │   └── Rerank Span (Re-ranking results)
-    └── LLM Span (Final response)
-        └── Cost: $0.0031
-```
-
-### Key Entities
-
-#### Trace
-A **trace** represents one complete agent execution from start to finish. It contains multiple spans.
-
-```python
-{
-    "trace_id": "abc-123-def",
-    "start_time": 1699564800.0,
-    "end_time": 1699564803.5,
-    "duration_ms": 3500,
-    "status": "success",
-    "total_cost": 0.0073,
-    "total_tokens": 1842,
-    "llm_calls": 2,
-    "tool_calls": 1
-}
-```
-
-#### Span
-A **span** represents a single operation within a trace (LLM call, tool execution, etc.).
-
-```python
-{
-    "span_id": "span-456",
-    "trace_id": "abc-123-def",
-    "parent_span_id": "span-123",  # null for root
-    "name": "openai.chat.completions.create",
-    "span_type": "llm",
-    "model": "gpt-4o-mini",
-    "start_time": 1699564801.0,
-    "end_time": 1699564802.5,
-    "duration_ms": 1500,
-    "status": "success",
-    "usage": {
-        "prompt_tokens": 150,
-        "completion_tokens": 75,
-        "total_tokens": 225,
-        "total_cost": 0.0042
-    },
-    "input_preview": "{\"messages\": [{\"role\": \"user\", ...}]}",
-    "output_preview": "{\"content\": \"Python is a high-level...\"}"
-}
-```
-
-### Context Propagation
-
-OAT uses Python's `contextvars` to propagate trace and span context across async boundaries:
-
-```python
-@trace(span_type="agent")
-async def agent():
-    # New trace created, trace_id set in context
-
-    await llm_call()  # Inherits trace_id, creates child span
-    await tool_call()  # Inherits trace_id, creates child span
-
-    # Trace context restored after agent completes
-```
-
----
-
-## 📚 Usage Guide
-
-### Tracing with Decorators
-
-#### Basic Agent Tracing
-
-```python
-from oat import trace
-
-@trace(name="my_agent", span_type="agent")
-async def my_agent(query: str):
-    # Agent logic here
-    return result
-```
-
-#### LLM Tracing (Manual)
-
-```python
-from oat import trace_llm
-
-@trace_llm(name="gpt4_call", model="gpt-4o-mini", service_provider="openai")
-async def call_gpt4(prompt: str):
-    # LLM call here
-    return response
-```
-
-#### Tool Tracing
-
-```python
-from oat import trace_tool
-
-@trace_tool(name="web_search")
-async def search_web(query: str):
-    # Tool logic
-    return results
-```
-
-#### Database Tracing
-
-```python
-from oat import trace_database
-
-@trace_database(name="user_query", operation="select")
-def get_user(user_id: int):
-    # Database query
-    return user
-```
-
-#### Retrieval Tracing (RAG)
-
-```python
-from oat import trace_retrieval
-
-@trace_retrieval(name="vector_search", collection="knowledge_base")
-async def search_vectors(query: str, k: int = 5):
-    # Vector search logic
-    return results
-```
-
-### Manual Span Creation
-
-Use context managers when decorators aren't suitable:
-
-```python
-from oat import span
-
-@trace(span_type="agent")
-async def complex_agent(query: str):
-    # Step 1: Manual span for custom logic
-    with span("preprocessing", span_type="chain") as s:
-        cleaned_query = preprocess(query)
-        s.set_output(cleaned_query)
-
-    # Step 2: Nested spans
-    with span("retrieval_pipeline", span_type="chain"):
-        with span("embedding", span_type="embedding") as s:
-            embedding = await get_embedding(cleaned_query)
-            s.set_output({"dimensions": len(embedding)})
-
-        with span("search", span_type="retrieval") as s:
-            results = await vector_search(embedding, k=5)
-            s.set_output(f"Found {len(results)} results")
-
-    # Step 3: LLM call (auto-traced if using patch_openai)
-    response = await call_llm(cleaned_query, results)
-
-    return response
-```
-
-### Auto-Instrumentation
-
-#### OpenAI
-
-```python
-from oat.integrations import patch_openai
-
-# Patch once at startup
-patch_openai()
-
-# Now all OpenAI calls are automatically traced
-from openai import AsyncOpenAI
-
-client = AsyncOpenAI()
-
-# This is automatically a traced LLM span!
-response = await client.chat.completions.create(
-    model="gpt-4o-mini",
-    messages=[{"role": "user", "content": "Hello"}]
-)
-
-# Embeddings are also traced
-embedding = await client.embeddings.create(
-    model="text-embedding-3-small",
-    input="Some text"
-)
-```
-
-#### Anthropic
-
-```python
-from oat.integrations import patch_anthropic
-
-# Patch Anthropic
-patch_anthropic()
-
-from anthropic import AsyncAnthropic
-
-client = AsyncAnthropic()
-
-# Automatically traced!
-response = await client.messages.create(
-    model="claude-3-5-sonnet-20241022",
-    max_tokens=1024,
-    messages=[{"role": "user", "content": "Hello"}]
-)
-```
-
----
-
-## 🏷️ Span Types
-
-OpenAgentTrace supports 14 semantic span types:
-
-### Core Agent Operations
-
-| Type | Description | Use Case | Example |
-|------|-------------|----------|---------|
-| `agent` | Root agent execution | Entry point for autonomous agents | `@trace(span_type="agent")` |
-| `llm` | LLM inference call | GPT, Claude, Gemini API calls | Auto-patched via `patch_openai()` |
-| `tool` | Tool/function execution | Calculator, search, API calls | `@trace_tool()` |
-| `retrieval` | RAG/vector search | Pinecone, Chroma, Qdrant queries | `@trace_retrieval(collection="kb")` |
-| `guardrail` | Safety/validation checks | Content moderation, PII detection | `@trace_guardrail(action="check")` |
-| `handoff` | Agent-to-agent transfer | Multi-agent systems | `@trace(span_type="handoff")` |
-
-### Supporting Operations
-
-| Type | Description | Use Case | Example |
-|------|-------------|----------|---------|
-| `chain` | Chain of operations | LangChain, sequential steps | `with span("chain", span_type="chain")` |
-| `embedding` | Embedding generation | Text/image embeddings | Auto-patched via integrations |
-| `rerank` | Reranking operation | Cohere rerank, custom rerankers | `@trace(span_type="rerank")` |
-| `memory` | Memory read/write | Conversation history, context | `@trace_memory(operation="read")` |
-
-### Infrastructure
-
-| Type | Description | Use Case | Example |
-|------|-------------|----------|---------|
-| `http` | HTTP request | External API calls | `@trace_http(method="POST")` |
-| `database` | Database query | SQL, NoSQL operations | `@trace_database(operation="insert")` |
-| `cache` | Cache operation | Redis, Memcached | `@trace_cache(operation="get")` |
-| `file_io` | File operations | Read/write files | `@trace_file_io(operation="read")` |
-
----
-
-## ⚙️ Configuration
-
-### tracer.yaml
-
-Create a `tracer.yaml` file in your project root:
-
-```yaml
-# Service Identification
-service:
-  name: "my-ai-agent"
-  version: "1.0.0"
-  environment: "production"  # dev, staging, production
-
-# Export Configuration
-export:
-  # Local storage (always enabled)
-  local:
-    data_dir: ".oat"  # Where to store traces
-
-  # Remote server (optional)
-  remote:
-    enabled: true
-    url: "http://localhost:8787"
-    flush_interval: 1.0  # seconds
-    batch_size: 100
-
-# Auto-Instrumentation
-instrumentation:
-  enabled: true
-  targets:
-    - module: "openai.chat.completions"
-      function: "create"
-      span_type: "llm"
-    - module: "anthropic.messages"
-      function: "create"
-      span_type: "llm"
-
-# Sampling (for high-volume agents)
-sampling:
-  rate: 1.0  # 1.0 = 100%, 0.5 = 50%
-  error_sampling: 1.0  # Always sample errors
-  slow_trace_threshold_ms: 5000  # Always sample slow traces
-
-# Cost Configuration (optional overrides)
-pricing:
-  gpt-4o-mini:
-    prompt_tokens_per_1k: 0.00015
-    completion_tokens_per_1k: 0.0006
-  custom-model:
-    prompt_tokens_per_1k: 0.001
-    completion_tokens_per_1k: 0.002
-```
-
-### Environment Variables
-
-```bash
-# Service configuration
-export OAT_SERVICE_NAME="my-agent"
-export OAT_ENVIRONMENT="production"
-
-# Remote export
-export OAT_EXPORT_URL="http://localhost:8787"
-export OAT_EXPORT_ENABLED="true"
-
-# Storage
-export OAT_DATA_DIR=".oat"
-
-# Sampling
-export OAT_SAMPLING_RATE="1.0"
-```
-
-### Programmatic Configuration
-
-```python
-from oat import get_tracer
-from pathlib import Path
+from oat import SpanKind, SpanStatus, get_tracer
 
 tracer = get_tracer(
     service_name="my-agent",
-    data_dir=Path(".oat"),
     export_url="http://localhost:8787",
-    auto_flush=True,
-    flush_interval=1.0
+)
+
+run = tracer.start_run(input_summary="Summarize this document")
+span = tracer.start_span(
+    name="agent.summarize",
+    kind=SpanKind.AGENT,
+    run_id=run.run_id,
+)
+
+tracer.record_artifact(
+    span,
+    role="input.text",
+    content_type="text/plain",
+    content="Document text goes here",
+    inline_text="Document text goes here",
+)
+
+tracer.finish_span(span, SpanStatus.SUCCESS)
+tracer.finish_run(
+    status=SpanStatus.SUCCESS,
+    output_summary="Summary completed",
+    run_id=run.run_id,
 )
 ```
 
----
+### Decorators and Context Helpers
 
-## 📊 Dashboard
+The tracer also exposes convenience APIs:
 
-### Features
+- `@trace(...)`
+- `trace_llm(...)`
+- `trace_tool(...)`
+- `trace_retrieval(...)`
+- `span(...)` context manager
 
-#### 1. Traces Explorer
-- **List View**: All traces with filters
-  - Filter by status (success/error)
-  - Filter by date range
-  - Filter by span type
-  - Search by trace ID or name
-- **Metrics**: Total traces, error rate, avg cost, avg latency
+Current behavior of the decorator layer:
 
-#### 2. Trace Detail View
-- **DAG Visualization**: Interactive node graph showing execution flow
-- **Waterfall Chart**: Timeline view of span durations
-- **Span Inspector**: Click any span to see:
-  - Input/output data
-  - Token usage and cost
-  - Model and provider
-  - Media inputs (for vision models)
-  - Error details (if failed)
+- it creates an implicit run if no run is active
+- it records input and output artifacts by default
+- async and sync functions are both supported
+- timeouts and exceptions are mapped to span/run status
 
-#### 3. Analytics Dashboard
-- **Overview Metrics** (24 hours):
-  - Total requests
-  - Error rate
-  - Total cost
-  - Avg latency
-- **Latency Percentiles** (by span type):
-  - P50, P95, P99
-  - Time-series charts
-- **Token Usage Trends**:
-  - Tokens per hour
-  - Cost per hour
-  - By model breakdown
+If `strict_run_lifecycle=True`, starting a span without an active run raises instead of creating an implicit run.
 
-#### 4. Prompts Registry
-- **Template Management**: Store and version prompt templates
-- **A/B Testing**: Compare prompt performance
-- **Cost Analysis**: Track cost by prompt version
+### Distributed Context Propagation
 
-### Screenshots
+The tracer supports lightweight propagation across service boundaries.
 
-<img width="2484" height="1110" alt="Screenshot 2026-02-04 212855" src="https://github.com/user-attachments/assets/7177192b-3a24-4475-a2ee-26d47445cec6" />
-<img width="2101" height="1279" alt="Screenshot 2026-02-04 230013" src="https://github.com/user-attachments/assets/a81c4eb8-9f0b-4481-adc0-805856af0a19" />
-<img width="2464" height="1371" alt="Screenshot 2026-02-04 163301" src="https://github.com/user-attachments/assets/8c696e49-1190-479c-8174-6fab0d37ae8c" />
-<img width="2459" height="1179" alt="Screenshot 2026-02-04 163323" src="https://github.com/user-attachments/assets/a03000ed-656f-43a9-83a1-35027afb3877" />
-<img width="2454" height="889" alt="Screenshot 2026-02-04 163340" src="https://github.com/user-attachments/assets/426c4460-1815-4935-b7ca-34fc285e18a6" />
-<img width="2458" height="1220" alt="Screenshot 2026-02-04 163355" src="https://github.com/user-attachments/assets/847d2a78-b390-4999-957b-681fba5063cb" />
-<img width="2473" height="1182" alt="Screenshot 2026-02-04 163444" src="https://github.com/user-attachments/assets/a2f960b9-6bed-4ca7-8606-d01dc0799d00" />
+Current outbound/inbound header names:
 
+- `x-oat-run-id`
+- `x-oat-span-id`
+- `x-oat-parent-span-id`
+- `x-oat-workflow-id`
 
-### Demo Video 
+Helpers:
 
-https://github.com/user-attachments/assets/a6d6d7b3-c206-4fe3-ae4f-1202545ddead
+- `inject_context(headers)`
+- `extract_context(headers)`
 
+### Subprocess Propagation
 
----
+Helpers:
 
-## 🔌 Server API
+- `get_subprocess_env(...)`
+- `restore_from_env()`
 
-### REST Endpoints
+Environment keys used for child processes:
 
-#### Traces
+- `OAT_PROPAGATED_RUN_ID`
+- `OAT_PROPAGATED_SPAN_ID`
+
+### Agent Loop Tracking
+
+`AgentLoop` and `agent_loop(...)` provide a first-class way to model iterative agent loops.
+
+Current behavior:
+
+- a parent span is created for the loop
+- each iteration becomes a child span
+- each step is tagged with `iteration_index`
+- `finish()` must be called to close the loop span
+
+## Local Storage Model
+
+Storage is implemented in `oat/storage.py`.
+
+### Current Storage Backend
+
+The project currently uses SQLite, not DuckDB.
+
+Default local layout:
+
+- database: `.oat/telemetry.db`
+- blob directory: `.oat/blobs/`
+
+SQLite is initialized with:
+
+- `PRAGMA journal_mode=WAL`
+- `PRAGMA synchronous=NORMAL`
+
+### Current Tables
+
+- `runs`
+- `spans`
+- `artifacts`
+- `feedback`
+- `event_log`
+
+### What Gets Stored
+
+- `event_log` stores the raw canonical event stream.
+- `runs` and `spans` are materialized rollups for read APIs and the dashboard.
+- `artifacts` stores preview metadata and references to blob content.
+- `feedback` stores thumbs-up and thumbs-down scoring.
+
+### Artifact Materialization
+
+Current artifact behavior:
+
+- If artifact `content` is present and no `storage_uri` or `inline_text` is supplied, content is written to `.oat/blobs/` and referenced by `blob://sha256/...`.
+- Short string content may also be copied into `inline_text`.
+- `preview` is stored separately for fast dashboard rendering.
+- Artifact content can later be fetched through the artifact content endpoint.
+
+### Run Rollups
+
+Run counters are derived from finished span data.
+
+Rollups include:
+
+- `span_count`
+- `llm_calls`
+- `tool_calls`
+- `total_tokens`
+- `total_cost`
+- final run status and duration
+
+A full run refresh is done when a `run.finished` event is processed.
+
+## Local-First vs Server-Visible Data
+
+This is one of the most important operational details in the repo.
+
+### SDK Process Storage
+
+If you create a tracer in a client process, it writes into that process's local `.oat/` directory unless you pass a different `data_dir`.
+
+### Server Storage
+
+The FastAPI server also writes into its own `.oat/` directory, relative to the server process working directory.
+
+Examples:
+
+- If you run `cd server && uvicorn main:app --port 8787 --host 0.0.0.0 --reload`, server data lands in `server/.oat/`.
+- If you run a client example from repo root without export, its local data lands in the repo root `.oat/`.
+
+### Dashboard Visibility Rule
+
+The dashboard queries the server API, so it only sees traces stored by the server.
+
+That means:
+
+- local-only SDK traces are not automatically visible in the dashboard
+- to see a client run in the dashboard, the client must export to the server
+
+## Exporters
+
+The repo includes exporter classes in `oat/exporters.py`.
+
+Current exporters:
+
+- `ConsoleExporter`
+- `HTTPExporter`
+- `FileExporter`
+- `CompositeExporter`
+
+Important current detail:
+
+- `AgentTracer` exports canonical events to `POST /v1/ingest/events`
+- `HTTPExporter` is an older compatibility path and posts legacy span payloads to `/ingest`
+
+## Auto-Instrumentation and Integrations
+
+Built-in integrations live in `oat/integrations/`.
+
+Current in-tree patchers:
+
+- OpenAI
+- Anthropic
+- Google Gemini
+- Ollama
+
+Entry points:
+
+- `patch_openai()` / `unpatch_openai()`
+- `patch_anthropic()` / `unpatch_anthropic()`
+- `patch_google()` / `unpatch_google()`
+- `patch_ollama()` / `unpatch_ollama()`
+- `patch_all()` / `unpatch_all()`
+
+`patch_all()` patches the built-in integrations above and then applies any integrations registered through the extension registry in `oat/integrations/base.py`.
+
+### Important Note About Extras vs Built-In Patchers
+
+`pyproject.toml` still declares optional extras for `litellm` and `langchain`, but this repository does not currently ship first-party in-tree patcher modules for those libraries.
+
+That means:
+
+- the extras can install those packages
+- extension-based instrumentation is possible
+- but built-in patch functions currently exist only for OpenAI, Anthropic, Google, and Ollama
+
+### OpenAI Integration
+
+The OpenAI integration is currently the most developed path in the repo.
+
+Current behavior includes:
+
+- sync and async chat completion tracing
+- embeddings tracing
+- streaming wrapper support
+- provider inference from `base_url` and model naming
+- multimodal artifact extraction from message payloads
+- normalized token and cost recording on spans
+
+Current provider inference covers common OpenAI-compatible endpoints such as:
+
+- OpenAI
+- OpenRouter
+- Groq
+- DeepSeek
+- Qwen
+- Moonshot
+- Kimi
+- Mistral
+- Ollama
+- self-hosted OpenAI-compatible endpoints
+- vLLM-style endpoints
+
+### Multimodal Capture
+
+`oat/media.py` extracts artifacts from:
+
+- OpenAI-style multimodal messages
+- Anthropic-style multimodal messages
+- Gemini-style contents and parts
+
+Current roles used by the system include:
+
+- `input.text`
+- `input.message`
+- `input.image`
+- `input.audio`
+- `derived.audio_transcript`
+- `derived.media_analysis`
+- `output.text`
+- `output.embedding`
+
+This is what enables the dashboard to show prompt payloads, output text, local images, remote image references, and media-related metadata.
+
+## Provider Normalization and Pricing
+
+### Provider Detection
+
+Provider normalization lives in `oat/providers.py`.
+
+Current detection inputs:
+
+- explicit provider hint
+- base URL
+- model naming pattern
+
+Known normalized provider names currently include:
+
+- `openai`
+- `anthropic`
+- `google`
+- `ollama`
+- `mistral`
+- `moonshot`
+- `kimi`
+- `qwen`
+- `openrouter`
+- `groq`
+- `deepseek`
+- `self_hosted`
+- `vllm`
+- `openai_compatible`
+
+### Pricing
+
+Pricing helpers live in `oat/pricing.py`.
+
+Current behavior:
+
+- built-in per-1K token pricing table for common model families
+- family/prefix fallback matching for newer variant names
+- alias normalization for versioned model names
+- normalized usage payload generation via `build_llm_usage(...)`
+- `pricing_status` flag set to `known` or `unknown`
+
+### Pricing Overrides
+
+Current override resolution:
+
+1. `OAT_PRICING_FILE`, if set
+2. `pricing_overrides.yaml`
+3. `pricing_overrides.yml`
+4. `pricing_overrides.json`
+
+The override file can be either a top-level pricing map or a document with a `pricing:` key.
+
+## Backend Server
+
+The backend implementation is `server/main.py`.
+
+### Current Responsibilities
+
+The server currently does all of the following:
+
+- ingests canonical event batches
+- supports legacy span ingestion
+- persists data with the same `StorageEngine`
+- serves run lists, run detail, graphs, artifacts, analytics, and prompt analytics
+- exposes a model arena API
+- exposes websocket endpoints for realtime clients
+- performs housekeeping for stale running spans and runs
+
+### Environment Loading
+
+The server loads `.env` and `.env.local` from the current working directory only.
+
+This matters in practice:
+
+- if you run the server from `server/`, it reads `server/.env`
+- if you run it from the repo root, it reads root `.env`
+- it does not automatically search multiple directories the way the multimodal example does
+
+### Data Directory
+
+The server uses:
+
+- `DATA_DIR = Path(".oat")`
+
+So the actual on-disk location depends on the working directory of the server process.
+
+### Housekeeping
+
+A background task marks stale running spans and runs as cancelled so the dashboard does not show orphaned `running` entries forever after a client crash.
+
+Current config:
+
+- `OAT_STALE_SPAN_TIMEOUT`, default `600` seconds
+- housekeeping check interval: `60` seconds
+
+### Provider Catalog
+
+The model arena reads provider configuration from:
+
+- environment variable `OAT_PROVIDER_CONFIG`, or
+- default file `providers.yaml`
+
+Provider discovery cache TTL is controlled by:
+
+- `OAT_PROVIDER_DISCOVERY_TTL`, default `120` seconds
+
+### CORS
+
+Current server behavior:
+
+- if `OAT_CORS_ORIGINS` is not set, allowed origins default to `*`
+- credentials are only enabled when you provide explicit origins
+
+This is practical for local development, but the server is not production-hardened by default.
+
+## Canonical API Surface
+
+Current canonical endpoints are:
+
+### Ingest
+
+- `POST /v1/ingest/events`
+  - canonical batched event ingest
+- `POST /v1/ingest/run`
+  - direct ingest of a run plus spans and artifacts
+
+### Runs and Detail
+
+- `GET /v1/runs`
+- `GET /v1/runs/{run_id}`
+- `GET /v1/runs/{run_id}/timeline`
+- `GET /v1/runs/{run_id}/graph`
+- `GET /v1/runs/{run_id}/artifacts`
+
+### Artifacts and Feedback
+
+- `GET /v1/artifacts/{artifact_id}/content`
+- `POST /v1/spans/{span_id}/feedback`
+
+### Analytics
+
+- `GET /v1/analytics/overview`
+- `GET /v1/analytics/prompts`
+- `GET /v1/services`
+
+### Realtime
+
+- `WS /v1/ws`
+
+## Legacy Compatibility API Surface
+
+The server still ships legacy routes for older clients and older UI assumptions.
+
+Current legacy endpoints are:
+
+- `POST /ingest`
+- `GET /traces`
+- `GET /traces/{trace_id}`
+- `GET /spans/{span_id}`
+- `DELETE /traces/{trace_id}`
+- `POST /spans/{span_id}/feedback`
+- `POST /search`
+- `GET /analytics/overview`
+- `GET /analytics/latency`
+- `WS /ws`
+
+## Arena API
+
+The model comparison feature uses dedicated endpoints:
+
+- `GET /arena/models`
+- `POST /arena/run`
+
+Current arena responses include fields such as:
+
+- `status`
+- `provider`
+- `model`
+- `output`
+- `usage`
+- `pricing`
+- `duration_ms`
+
+## Health and Admin API
+
+Current utility endpoints:
+
+- `GET /health`
+- `DELETE /admin/reset`
+
+`/health` returns server status, version, and resolved data directory.
+
+`/admin/reset` deletes all stored runs. It is intended for trusted local environments, not for an exposed production deployment.
+
+## Dashboard UI
+
+The dashboard lives in `ui/` and is built with React 18 and Vite 5.
+
+Current UI dependencies include:
+
+- `react`
+- `react-router-dom`
+- `recharts`
+- `lucide-react`
+- `dagre`
+- `reactflow`
+- `date-fns`
+- `clsx`
+
+Current API base URL behavior from `ui/src/App.jsx`:
+
+- in development: `http://localhost:8787`
+- outside development builds: `/api`
+
+That means a production-style deployment would need a reverse proxy or equivalent routing in front of the backend.
+
+### Route Map
+
+Current routes from `ui/src/App.jsx`:
+
+- `/` -> Runs page
+- `/runs/:runId` -> Run detail page
+- `/analytics` -> Analytics page
+- `/prompts` -> Prompt Registry page
+- `/flow` -> Flow Graph page
+- `/arena` -> Model Arena page
+
+### Navigation Model
+
+Current sidebar sections:
+
+- Monitor
+  - Runs
+  - Analytics
+- Intelligence
+  - Prompt Registry
+  - Flow Graph
+  - Model Arena
+
+### Runs Page
+
+The Runs page is service-first, not run-first.
+
+Current flow:
+
+1. fetch services from `GET /v1/services`
+2. let the user choose a service or agent name
+3. fetch runs for that service from `GET /v1/runs?limit=100&service_name=...`
+
+### Run Detail Page
+
+The run detail page currently loads three data sources in parallel:
+
+- `GET /v1/runs/{run_id}`
+- `GET /v1/runs/{run_id}/graph`
+- `GET /v1/runs/{run_id}/timeline`
+
+Current capabilities:
+
+- DAG view with React Flow
+- waterfall timeline view
+- span inspector with `overview`, `input`, and `output` tabs
+- token usage display
+- model and cost display
+- artifact rendering for text and images
+- feedback buttons for span scoring
+
+### Analytics Page
+
+The analytics page currently supports:
+
+- time windows: `1H`, `24H`, `7D`
+- optional service filter
+- KPI cards for cost, run volume, latency, and error rate
+- traffic and error chart
+- token usage chart
+- model performance table
+- operation-type table
+
+### Prompt Registry Page
+
+The Prompt Registry page is built from `GET /v1/analytics/prompts`.
+
+Current columns and behaviors:
+
+- prompt text
+- call count
+- error rate
+- last used timestamp
+- average latency
+- average cost
+- copy button
+
+Prompts are derived from artifact roles `input.message` and `input.text`.
+
+### Flow Graph Page
+
+The Flow Graph page is a run-level graph viewer.
+
+Current workflow:
+
+1. choose a service
+2. choose a run under that service
+3. fetch `GET /v1/runs/{run_id}/graph`
+4. render a dagre-based flow chart
+
+### Model Arena Page
+
+The Arena page lets the user compare between 2 and 4 models side by side on the same system prompt and user prompt.
+
+Current behavior:
+
+- fetch available models from `GET /arena/models`
+- render provider and model availability
+- call `POST /arena/run` for each selected panel
+- show output text, latency, token usage, cost, and pricing status
+
+## Provider Catalog and Arena Configuration
+
+The provider catalog is defined in `providers.yaml`.
+
+Current provider entries include:
+
+- `openai`
+- `anthropic`
+- `google`
+- `openrouter`
+- `groq`
+- `deepseek`
+- `mistral`
+- `moonshot`
+- `kimi`
+- `qwen`
+- `ollama`
+- `self_hosted`
+
+Current provider types used by the arena:
+
+- `openai`
+- `anthropic`
+- `google`
+- `openai_compatible`
+- `ollama`
+
+### Static vs Discoverable Providers
+
+Current catalog behavior:
+
+- some providers are fully static
+- some providers also support model discovery
+
+Discovery is currently enabled in the checked-in catalog for:
+
+- `openrouter`
+- `ollama`
+- `self_hosted`
+
+### Common Arena Environment Variables
+
+The provider catalog resolves API keys and base URLs from environment variables.
+
+Examples from the current catalog:
+
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`
+- `ANTHROPIC_API_KEY`
+- `GOOGLE_API_KEY`
+- `GEMINI_API_KEY`
+- `OPENROUTER_API_KEY`
+- `GROQ_API_KEY`
+- `DEEPSEEK_API_KEY`
+- `MISTRAL_API_KEY`
+- `MOONSHOT_API_KEY`
+- `KIMI_API_KEY`
+- `QWEN_API_KEY`
+- `OLLAMA_BASE_URL`
+- `SELF_HOSTED_LLM_BASE_URL`
+- `OPENAI_COMPAT_BASE_URL`
+- `VLLM_BASE_URL`
+- `SELF_HOSTED_LLM_API_KEY`
+- `OPENAI_COMPAT_API_KEY`
+
+## Examples
+
+### `examples/demo_agent.py`
+
+This is a simulated agent example that demonstrates:
+
+- decorator-based tracing
+- nested spans
+- retrieval, tool, and guardrail style spans
+- successful and failing runs
+- export to `http://localhost:8787`
+
+Current notes:
+
+- it is demo-oriented and not especially polished
+- it still uses legacy names such as `SpanType`
+- it prints simulated output and token usage rather than making real model calls
+
+### `examples/multimodal_image_agent.py`
+
+This is the main real multimodal example in the repo right now.
+
+Current behavior:
+
+- patches the OpenAI integration before importing `AsyncOpenAI`
+- loads environment variables from multiple locations
+- defaults to a local image file when available
+- exports traces to the server by default
+- sends a multimodal request with text plus image
+- records explicit input and output artifacts
+
+Current default behavior if you run it with no flags:
+
+- image path defaults to `examples/test_image.png` if that file exists
+- export URL defaults to `http://localhost:8787`
+- model defaults to `gpt-4o-mini` unless overridden
+
+Current env file search order in the example:
+
+1. `server/.env`
+2. `server/.env.local`
+3. repo root `.env`
+4. repo root `.env.local`
+5. `examples/.env`
+6. `examples/.env.local`
+7. current working directory `.env`
+8. current working directory `.env.local`
+
+Current CLI options:
+
+- `--image-url`
+- `--image-path`
+- `--use-remote-default`
+- `--question`
+- `--model`
+- `--max-tokens`
+
+## Installation
+
+### Prerequisites
+
+- Python `3.9+`
+- `pip`
+- Node.js and `npm` for the dashboard
+
+`pyproject.toml` is the authoritative source for Python extras and package metadata. `requirements.txt` is present as a convenience list, but the install commands in this document are aligned to `pyproject.toml`.
+
+### Core SDK Only
+
+For local-only tracing with no server and no provider integrations:
 
 ```bash
-# List all traces
-GET /traces?limit=50&offset=0&status=success
-
-# Get specific trace with all spans
-GET /traces/{trace_id}?include_blobs=true
-
-# Delete trace
-DELETE /traces/{trace_id}
+pip install -e .
 ```
 
-#### Spans
+### Server
+
+To run the backend server:
 
 ```bash
-# Get specific span
-GET /spans/{span_id}?include_blobs=true
-
-# Ingest spans (used by SDK)
-POST /ingest
+pip install -e ".[server]"
 ```
 
-#### Analytics
+### HTTP Export
+
+If you want the SDK to export over HTTP, install the HTTP extra:
 
 ```bash
-# Overview metrics (last 24h)
-GET /analytics/overview
-
-# Latency percentiles by span type
-GET /analytics/latency
-
-# Custom time-series query
-POST /analytics/query
+pip install -e ".[http]"
 ```
 
-#### Feedback
+### OpenAI Integration
+
+For the multimodal example or OpenAI auto-instrumentation:
 
 ```bash
-# Add user feedback to trace
-POST /traces/{trace_id}/feedback
-{
-  "score": 1,  # -1, 0, or 1
-  "feedback": "Great response!"
-}
+pip install -e ".[openai,http]"
 ```
 
-### WebSocket (Real-Time Updates)
+### Everything Declared in `pyproject.toml`
 
-```javascript
-const ws = new WebSocket('ws://localhost:8787/ws');
-
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log('New span:', data);
-};
+```bash
+pip install -e ".[all]"
 ```
 
-### API Client Examples
+Note that `.[all]` installs declared extras, but the repository's built-in patchers are currently limited to OpenAI, Anthropic, Google, and Ollama.
 
-#### Python
+## Running the Full Local Stack
 
-```python
-import httpx
+### Backend
 
-# Get traces
-response = httpx.get("http://localhost:8787/traces")
-traces = response.json()
+From the repository root, one reliable path is:
 
-# Get specific trace
-trace_id = "abc-123"
-response = httpx.get(f"http://localhost:8787/traces/{trace_id}?include_blobs=true")
-trace_details = response.json()
+```bash
+cd server
+uvicorn main:app --port 8787 --host 0.0.0.0 --reload
 ```
 
-#### JavaScript
+### Frontend
 
-```javascript
-// Fetch traces
-const response = await fetch('http://localhost:8787/traces');
-const traces = await response.json();
+In another shell:
 
-// Add feedback
-await fetch(`http://localhost:8787/traces/${traceId}/feedback`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ score: 1, feedback: 'Excellent!' })
-});
+```bash
+cd ui
+npm install
+npm run dev
 ```
 
----
+The dashboard expects the API at `http://localhost:8787` in development.
 
-## 🔗 Integrations
+### One-Command Scripts
 
-### Supported Providers
+The repository includes convenience scripts:
 
-| Provider | Status | Auto-Patch | Models Supported |
-|----------|--------|------------|------------------|
-| **OpenAI** | ✅ Full | `patch_openai()` | GPT-4, GPT-4o, GPT-3.5, Embeddings, Vision |
-| **Anthropic** | ✅ Full | `patch_anthropic()` | Claude 3.5 Sonnet, Claude 3 Opus/Haiku |
-| **Google** | 🚧 WIP | Manual | Gemini Pro, Gemini Ultra |
-| **Mistral** | 🚧 WIP | Manual | Mistral Large, Medium, Small |
-| **Cohere** | 🚧 WIP | Manual | Command, Embed, Rerank |
+- `start.sh`
+- `start.ps1`
 
-### LangChain Integration
+Current behavior of the scripts:
 
-```python
-from langchain.callbacks import OpenAgentTraceCallback
-from langchain.chat_models import ChatOpenAI
-from oat.integrations import patch_openai
+- install Python dependencies with `pip install -e ".[server]"`
+- install UI dependencies with `npm install`
+- start backend on port `8787`
+- start frontend on port `3000`
 
-# Patch OpenAI
-patch_openai()
+### CLI Entry Point
 
-# Use LangChain normally - calls are auto-traced!
-llm = ChatOpenAI(model="gpt-4o-mini")
-response = llm.invoke("What is AI?")
+After installing the package, there is also a Python entry point:
+
+```bash
+oat-server
 ```
 
-### LlamaIndex Integration
+Current caveat:
 
-```python
-from llama_index import VectorStoreIndex
-from oat import trace
+- `oat-server` runs `server.main:main()` from the current working directory
+- because server env loading is cwd-relative, where you run it from affects which `.env` file is read and where `.oat/` is created
 
-# Wrap with trace decorator
-@trace(span_type="agent")
-def rag_query(query: str):
-    index = VectorStoreIndex.from_documents(documents)
-    query_engine = index.as_query_engine()
-    return query_engine.query(query)
-```
+## Running the Examples
 
----
+### Demo Agent
 
-## 🎓 Advanced Topics
-
-### Custom Exporters
-
-Create your own exporter to send traces to custom destinations:
-
-```python
-from oat.exporters import SpanExporter
-from oat.models import Span
-
-class CustomExporter(SpanExporter):
-    def export(self, span: Span, inputs=None, outputs=None):
-        # Send to your custom backend
-        print(f"Exporting {span.name} to custom backend")
-        # Your logic here
-
-    def shutdown(self):
-        print("Shutting down custom exporter")
-
-# Use custom exporter
-from oat import get_tracer
-
-tracer = get_tracer(service_name="my-agent")
-tracer.exporter = CustomExporter()
-```
-
-### Distributed Tracing
-
-Propagate traces across services:
-
-```python
-from oat import get_current_trace_id, set_trace_id
-
-# Service A
-@trace(span_type="agent")
-async def service_a():
-    trace_id = get_current_trace_id()
-
-    # Send trace_id in headers
-    headers = {"X-Trace-ID": trace_id}
-    response = await httpx.post("http://service-b", headers=headers)
-    return response
-
-# Service B
-@trace(span_type="agent")
-async def service_b(request):
-    # Extract and set trace_id
-    trace_id = request.headers.get("X-Trace-ID")
-    if trace_id:
-        set_trace_id(trace_id)
-
-    # This span will be part of Service A's trace!
-    return await process_request(request)
-```
-
-### Custom Span Metadata
-
-```python
-@trace(span_type="llm", metadata={"experiment": "prompt-v2", "user_id": "123"})
-async def experimental_llm_call(prompt: str):
-    # Metadata is stored with span for filtering
-    return await call_llm(prompt)
-```
-
-### Sampling Strategies
-
-```python
-from oat import get_tracer
-import random
-
-tracer = get_tracer(service_name="high-volume-agent")
-
-# Only trace 10% of requests
-if random.random() < 0.1:
-    @trace(span_type="agent")
-    async def agent(query):
-        return await process(query)
-else:
-    # Don't trace
-    async def agent(query):
-        return await process(query)
-```
-
-### Cost Optimization
-
-Track and optimize LLM costs:
-
-```python
-from oat import trace, get_tracer
-
-@trace(span_type="agent")
-async def cost_aware_agent(query: str):
-    # Try cheaper model first
-    with span("cheap_attempt", span_type="llm") as s:
-        response = await call_gpt_mini(query)
-
-        # Check if response is good enough
-        if is_quality_sufficient(response):
-            s.metadata["selected"] = True
-            return response
-
-    # Fall back to expensive model
-    with span("expensive_fallback", span_type="llm") as s:
-        s.metadata["selected"] = True
-        return await call_gpt4(query)
-```
-
----
-
-## 📝 Examples
-
-### Complete Agent Example
-
-See `examples/demo_agent.py` for a full-featured agent with:
-- ✅ OpenAI LLM calls
-- ✅ SQLite database for memory
-- ✅ Tool calling (search, calculator)
-- ✅ Multi-step reasoning chains
-- ✅ Vision model integration
-- ✅ Error handling and retries
-
-```python
-# Run the demo
+```bash
 python examples/demo_agent.py
 ```
 
-### Simple Coding Agent
+### Multimodal Image Agent
 
-See `examples/coding_agent.py` for a minimal example:
-
-```python
-from oat import trace, get_tracer
-from oat.integrations import patch_openai
-from openai import AsyncOpenAI
-
-tracer = get_tracer(
-    service_name="coding-agent",
-    export_url="http://localhost:8787"
-)
-
-patch_openai()
-
-@trace(name="agent.code_question", span_type="agent")
-async def ask_coding_question(question: str):
-    client = AsyncOpenAI()
-
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a Python expert."},
-            {"role": "user", "content": question}
-        ]
-    )
-
-    return response.choices[0].message.content
-
-# Run
-import asyncio
-result = asyncio.run(ask_coding_question(
-    "Write a function to check if a number is prime"
-))
-print(result)
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### 1. Traces not appearing in dashboard
-
-**Symptoms**: Agent runs but no traces show up
-
-**Solutions**:
 ```bash
-# Check if spans are in local database
-python -c "import sqlite3; conn = sqlite3.connect('.oat/traces.db'); print(conn.execute('SELECT COUNT(*) FROM spans').fetchone()[0], 'spans found')"
-
-# Check server logs
-uvicorn server.main:app --port 8787 --log-level debug
-
-# Verify export URL
-python -c "from oat import get_tracer; t = get_tracer(export_url='http://localhost:8787'); print('Exporter:', t.exporter)"
+python examples/multimodal_image_agent.py
 ```
 
-#### 2. Auto-instrumentation not working
+Useful variants:
 
-**Symptoms**: OpenAI calls not traced automatically
-
-**Solutions**:
-```python
-# Ensure patch is called BEFORE importing OpenAI
-from oat.integrations import patch_openai
-patch_openai()  # Call this FIRST!
-
-# Then import OpenAI
-from openai import AsyncOpenAI
-
-# Verify patch worked
-import openai
-print("Patched:", hasattr(openai, '_oat_patched'))
+```bash
+python examples/multimodal_image_agent.py --image-path examples/test_image.png
+python examples/multimodal_image_agent.py --question "Describe the image in detail."
+python examples/multimodal_image_agent.py --model gpt-4o
 ```
 
-#### 3. High memory usage
+## Configuration Reference
 
-**Symptoms**: Agent uses too much memory with tracing enabled
+### Common Environment Variables
 
-**Solutions**:
-```python
-# Reduce flush interval
-tracer = get_tracer(
-    service_name="my-agent",
-    flush_interval=0.5  # Flush more frequently
-)
+| Variable | Used By | Current Meaning |
+|---|---|---|
+| `OPENAI_API_KEY` | OpenAI integration, multimodal example, arena | API key for OpenAI or compatible endpoint |
+| `OPENAI_BASE_URL` | OpenAI integration, multimodal example | Base URL for OpenAI-compatible providers |
+| `OAT_EXPORT_URL` | SDK callers and examples | Server base URL for event export |
+| `OAT_PROVIDER_CONFIG` | Server | Path to provider catalog YAML |
+| `OAT_PROVIDER_DISCOVERY_TTL` | Server | Discovery cache TTL in seconds |
+| `OAT_PRICING_FILE` | Pricing helpers | Path to pricing override file |
+| `OAT_STALE_SPAN_TIMEOUT` | Server | Age threshold before stale running spans are cancelled |
+| `OAT_CORS_ORIGINS` | Server | Comma-separated allowed origins |
+| `OAT_MULTIMODAL_MODEL` | Multimodal example | Default vision-capable model name |
+| `OAT_MULTIMODAL_IMAGE_URL` | Multimodal example | Optional default remote image |
+| `OAT_MULTIMODAL_IMAGE_PATH` | Multimodal example | Optional default local image path |
+| `OLLAMA_BASE_URL` | Arena and Ollama integration | Base URL for local or remote Ollama |
 
-# Disable input/output capture for large payloads
-@trace(span_type="llm", capture_input=False, capture_output=False)
-async def large_llm_call(huge_prompt: str):
-    return await call_llm(huge_prompt)
+### `tracer.yaml`
 
-# Use sampling
-import random
-if random.random() < 0.1:  # Trace only 10%
-    @trace(span_type="agent")
-    async def agent(query):
-        return await process(query)
-```
+A `tracer.yaml` file exists in the repo, but it is currently illustrative configuration, not a file that the core SDK automatically loads on startup.
 
-#### 4. Trace hierarchy broken
+Treat it as an example reference, not as the current runtime control plane.
 
-**Symptoms**: Parent-child relationships incorrect
+## Development State and Caveats
 
-**Solutions**:
-This was a known bug that has been fixed in the latest version. Update to the latest code and ensure:
+### 1. Trusted-Environment Assumption
 
-```python
-# Each agent execution creates ONE trace
-@trace(span_type="agent")  # Creates new trace
-async def my_agent():
-    # All child operations inherit this trace
-    await llm_call()  # Child span
-    await tool_call()  # Child span
-```
+The server currently has no built-in authentication layer for ingest, reads, arena, or admin reset operations.
 
-#### 5. Dashboard shows wrong outputs
+That is acceptable for local development and internal experimentation, but it is not a production security model.
 
-**Symptoms**: Span outputs don't match actual execution
+### 2. Local Storage Separation Can Be Confusing
 
-**Solutions**:
-- Ensure you're running the latest version with trace context fixes
-- Check that `include_blobs=true` is set when fetching trace details
-- Verify blob storage is working: `ls .oat/blobs/`
+Because both the SDK and the server write to `.oat/` relative to their own working directories, it is easy to end up with multiple SQLite stores.
 
----
+If you are debugging why a run does not appear in the dashboard, check:
 
-## 🙏 Acknowledgments
+- which process created the run
+- whether that process exported to the server
+- where the server was launched from
+- which `.oat/telemetry.db` the dashboard backend is reading
+
+### 3. Older Docs Lag the Code
+
+Some older docs and comments in the repository still refer to earlier architecture ideas such as DuckDB-centric analytics, older integrations, or files that no longer exist.
+
+For the current repository state, prefer:
+
+- source code
+- this `README_DETAILED.md`
+- `README.md` for the short overview
+
+### 4. Tests
+
+The `tests/` directory is currently empty. There is project configuration for `pytest`, `pytest-asyncio`, coverage, Ruff, MyPy, and Black, but there is not yet a committed automated test suite that exercises the main flows.
+
+### 5. Version Strings Are Not Yet Unified
+
+At the time of writing:
+
+- the Python package exports version `0.1.0`
+- the FastAPI app reports version `0.2.0`
+
+This does not break functionality, but it is worth knowing when comparing logs, docs, and API responses.
+
+## Practical Source-of-Truth Files
+
+If you need to confirm current behavior, these are the most useful files to read:
+
+- `oat/models.py`
+- `oat/tracer.py`
+- `oat/storage.py`
+- `oat/media.py`
+- `oat/pricing.py`
+- `oat/providers.py`
+- `oat/integrations/openai_integration.py`
+- `server/main.py`
+- `providers.yaml`
+- `ui/src/App.jsx`
+- `ui/src/pages/TracesPage.jsx`
+- `ui/src/pages/TraceDetailPage.jsx`
+- `ui/src/pages/AnalyticsPage.jsx`
+- `ui/src/pages/PromptsPage.jsx`
+- `ui/src/pages/FlowPage.jsx`
+- `ui/src/pages/ArenaPage.jsx`
+
+## Summary
+
+OpenAgentTrace, as currently implemented in this repository, is a canonical run/span/artifact observability stack with:
+
+- explicit telemetry lifecycle APIs
+- local-first SQLite storage
+- optional HTTP export
+- multimodal artifact capture
+- provider normalization and pricing helpers
+- a FastAPI backend for ingestion and analytics
+- a React dashboard for run inspection and model comparison
+
+The most important operational rule is still this: if you want a run to appear in the dashboard, the process that created the run must export it to the server that the dashboard is querying.
+
+
+## Acknowledgments
 
 OpenAgentTrace is inspired by and builds upon ideas from:
 
@@ -1105,7 +1369,7 @@ Special thanks to the open-source community for their tools and frameworks.
 
 ---
 
-## 📄 License
+## License
 
 OpenAgentTrace is licensed under the **MIT License**.
 
@@ -1135,17 +1399,10 @@ SOFTWARE.
 
 ---
 
-## 📞 Support
+## Support
 
 - **Website**: (https://oat.thelearnchain.com)
 - **Email**: founder@thelearnchain.com
 
 ---
 
-<div align="center">
-
-**⭐ Star us on GitHub if you find OpenAgentTrace useful!**
-
-Made with ❤️ by the LearnChain team
-
-</div>

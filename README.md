@@ -100,14 +100,14 @@ Local `.oat/` storage          FastAPI server (`server/main.py`)
                                    v
                            React dashboard (`ui/`)
 ```
-###Dashboard V2 Images
+### Dashboard V2 Images
 <img width="2481" height="1402" alt="Screenshot 2026-03-05 095901" src="https://github.com/user-attachments/assets/0a024b88-bbab-46a5-a4f4-2b3183221434" />
 <img width="2481" height="1396" alt="Screenshot 2026-03-05 100021" src="https://github.com/user-attachments/assets/e2629612-afb4-422d-8c16-4ec9630a142c" />
 <img width="2485" height="1401" alt="Screenshot 2026-03-05 102454" src="https://github.com/user-attachments/assets/96d33f61-2982-4564-9cf2-289cc7854f14" />
 <img width="2483" height="1404" alt="Screenshot 2026-03-05 101043" src="https://github.com/user-attachments/assets/c98e3cd1-d78e-4095-9ab6-45bdd950c3e9" />
 <img width="2483" height="1403" alt="Screenshot 2026-03-05 101718" src="https://github.com/user-attachments/assets/d7da22a3-9bff-4d06-b4e3-b21b011e0735" />
 
-###Demo - V1
+### Demo - V1
 https://github.com/user-attachments/assets/494742fb-2dac-47fe-ac4c-c8c1a3e98897
 
 

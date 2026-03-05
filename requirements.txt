@@ -1,0 +1,29 @@
+# OpenAgentTrace Dependencies
+
+# Server dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+websockets>=12.0
+PyYAML>=6.0
+
+# HTTP export from SDK tracer (_export_event uses requests)
+requests>=2.31.0
+
+# Optional: For auto-instrumentation integrations
+openai>=1.3.0
+anthropic>=0.7.0
+google-generativeai>=0.8.0
+ollama>=0.3.0
+httpx>=0.25.0
+
+# Development
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# Note: The OAT SDK core has no required dependencies beyond requests (for HTTP export).
+# It uses Python standard library (sqlite3, json, uuid, etc.) for local storage.
+#
+# Removed: duckdb (not used — storage is SQLite-only)
+# Removed: Pillow, mutagen (not imported — media.py uses only base64/stdlib)

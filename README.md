@@ -16,7 +16,7 @@
 
 ---# OpenAgentTrace Detailed Guide
 
-This document describes the repository as it exists in code on March 5, 2026. (Updated code is sequentially being pushed to the repo)
+This document describes the repository as it exists in code on March 5, 2026. 
 
 This file is the code-aligned technical reference for the current repository state.
 

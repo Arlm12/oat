@@ -1,0 +1,201 @@
+# OpenAgentTrace Arena provider catalog.
+#
+# The server reads this file and builds the Arena model list from:
+# 1) static `models` entries below
+# 2) optional live discovery when `discover_models: true`
+#
+# API keys are auto-resolved from `.env` / `.env.local` first, then process env.
+
+providers:
+  openai:
+    label: OpenAI
+    type: openai
+    api_key_env: OPENAI_API_KEY
+    base_url_env: OPENAI_BASE_URL
+    models:
+      - id: openai:gpt-5
+        model: gpt-5
+        name: GPT-5
+      - id: openai:gpt-5-mini
+        model: gpt-5-mini
+        name: GPT-5 Mini
+      - id: openai:gpt-4o
+        model: gpt-4o
+        name: GPT-4o
+      - id: openai:gpt-4o-mini
+        model: gpt-4o-mini
+        name: GPT-4o Mini
+
+  anthropic:
+    label: Anthropic
+    type: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+    models:
+      - id: anthropic:claude-sonnet-4-5
+        model: claude-sonnet-4-5-20250929
+        name: Claude Sonnet 4.5
+      - id: anthropic:claude-sonnet-4
+        model: claude-sonnet-4-20250514
+        name: Claude Sonnet 4
+      - id: anthropic:claude-opus-4-1
+        model: claude-opus-4-1-20250805
+        name: Claude Opus 4.1
+
+  google:
+    label: Google Gemini
+    type: google
+    api_key_env:
+      - GOOGLE_API_KEY
+      - GEMINI_API_KEY
+    models:
+      - id: google:gemini-2.5-pro
+        model: gemini-2.5-pro
+        name: Gemini 2.5 Pro
+      - id: google:gemini-2.5-flash
+        model: gemini-2.5-flash
+        name: Gemini 2.5 Flash
+      - id: google:gemini-2.5-flash-lite
+        model: gemini-2.5-flash-lite
+        name: Gemini 2.5 Flash-Lite
+
+  openrouter:
+    label: OpenRouter
+    type: openai_compatible
+    api_key_env: OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+    discover_models: true
+    model_discovery: openrouter
+    discovery_limit: 150
+    include_static_models: true
+    models:
+      - id: openrouter:gpt-5-mini
+        model: openai/gpt-5-mini
+        name: GPT-5 Mini (OR)
+      - id: openrouter:claude-sonnet-4
+        model: anthropic/claude-sonnet-4
+        name: Claude Sonnet 4 (OR)
+      - id: openrouter:gemini-2.5-flash
+        model: google/gemini-2.5-flash
+        name: Gemini 2.5 Flash (OR)
+
+  groq:
+    label: Groq
+    type: openai_compatible
+    api_key_env: GROQ_API_KEY
+    base_url: https://api.groq.com/openai/v1
+    models:
+      - id: groq:llama-3.3-70b
+        model: llama-3.3-70b-versatile
+        name: Llama 3.3 70B
+
+  deepseek:
+    label: DeepSeek
+    type: openai_compatible
+    api_key_env: DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com/v1
+    models:
+      - id: deepseek:chat
+        model: deepseek-chat
+        name: DeepSeek Chat
+      - id: deepseek:reasoner
+        model: deepseek-reasoner
+        name: DeepSeek Reasoner
+
+  mistral:
+    label: Mistral
+    type: openai_compatible
+    api_key_env: MISTRAL_API_KEY
+    base_url: https://api.mistral.ai/v1
+    models:
+      - id: mistral:large
+        model: mistral-large-latest
+        name: Mistral Large
+      - id: mistral:medium
+        model: mistral-medium-latest
+        name: Mistral Medium
+      - id: mistral:small
+        model: mistral-small-latest
+        name: Mistral Small
+
+  moonshot:
+    label: Moonshot
+    type: openai_compatible
+    api_key_env:
+      - MOONSHOT_API_KEY
+      - KIMI_API_KEY
+    base_url: https://api.moonshot.cn/v1
+    models:
+      - id: moonshot:8k
+        model: moonshot-v1-8k
+        name: Moonshot v1 8K
+      - id: moonshot:32k
+        model: moonshot-v1-32k
+        name: Moonshot v1 32K
+      - id: moonshot:128k
+        model: moonshot-v1-128k
+        name: Moonshot v1 128K
+
+  kimi:
+    label: Kimi
+    type: openai_compatible
+    api_key_env:
+      - KIMI_API_KEY
+      - MOONSHOT_API_KEY
+    base_url: https://api.moonshot.cn/v1
+    models:
+      - id: kimi:kimi-latest
+        model: kimi-latest
+        name: Kimi Latest
+
+  qwen:
+    label: Qwen
+    type: openai_compatible
+    api_key_env: QWEN_API_KEY
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    models:
+      - id: qwen:qwen-max
+        model: qwen-max
+        name: Qwen Max
+      - id: qwen:qwen-plus
+        model: qwen-plus
+        name: Qwen Plus
+
+  ollama:
+    label: Ollama
+    type: ollama
+    base_url_env: OLLAMA_BASE_URL
+    default_base_url: http://localhost:11434
+    requires_api_key: false
+    discover_models: true
+    model_discovery: ollama
+    discovery_limit: 200
+    include_static_models: true
+    models:
+      - id: ollama:llama3.3
+        model: llama3.3
+        name: Llama 3.3
+      - id: ollama:qwen3
+        model: qwen3
+        name: Qwen 3
+
+  self_hosted:
+    label: Self Deployed
+    type: openai_compatible
+    base_url_env:
+      - SELF_HOSTED_LLM_BASE_URL
+      - OPENAI_COMPAT_BASE_URL
+      - VLLM_BASE_URL
+    api_key_env:
+      - SELF_HOSTED_LLM_API_KEY
+      - OPENAI_COMPAT_API_KEY
+    requires_api_key: false
+    discover_models: true
+    discovery_limit: 200
+    include_static_models: true
+    models:
+      - id: self_hosted:qwen2.5-72b
+        model: qwen2.5-72b-instruct
+        name: Qwen 2.5 72B
+      - id: self_hosted:llama-3.3-70b
+        model: llama-3.3-70b-instruct
+        name: Llama 3.3 70B

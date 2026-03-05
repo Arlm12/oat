@@ -18,7 +18,7 @@
 
 This document describes the repository as it exists in code on March 5, 2026. (Updated code is sequentially being pushed to the repo)
 
-`README.md` is the shorter project overview. This file is the code-aligned technical reference for the current repository state.
+This file is the code-aligned technical reference for the current repository state.
 
 ## Snapshot
 
